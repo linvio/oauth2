@@ -111,6 +111,8 @@ class AuthorizationCodeGrant {
   /// constructor.
   final String _codeVerifier;
 
+  final String Function(String) _codeChallengeGenerator;
+
   /// Creates a new grant.
   ///
   /// If [basicAuth] is `true` (the default), the client credentials are sent to
@@ -155,13 +157,14 @@ class AuthorizationCodeGrant {
       CredentialsRefreshedCallback? onCredentialsRefreshed,
       Map<String, dynamic> Function(MediaType? contentType, String body)?
           getParameters,
-      String? codeVerifier})
+      String? codeVerifier, String Function(String)? codeChallengeGenerator})
       : _basicAuth = basicAuth,
         _httpClient = httpClient ?? http.Client(),
         _delimiter = delimiter ?? ' ',
         _getParameters = getParameters ?? parseJsonParameters,
         _onCredentialsRefreshed = onCredentialsRefreshed,
-        _codeVerifier = codeVerifier ?? _createCodeVerifier();
+        _codeVerifier = codeVerifier ?? _createCodeVerifier(),
+        _codeChallengeGenerator = codeChallengeGenerator ?? _createCodeChallenge;
 
   /// Returns the URL to which the resource owner should be redirected to
   /// authorize this client.
@@ -190,9 +193,7 @@ class AuthorizationCodeGrant {
     _state = _State.awaitingResponse;
 
     var scopeList = scopes?.toList() ?? <String>[];
-    var codeChallenge = base64Url
-        .encode(sha256.convert(ascii.encode(_codeVerifier)).bytes)
-        .replaceAll('=', '');
+    var codeChallenge = _codeChallengeGenerator(_codeVerifier);
 
     _redirectEndpoint = redirect;
     _scopes = scopeList;
@@ -301,9 +302,7 @@ class AuthorizationCodeGrant {
       'grant_type': 'authorization_code',
       'code': authorizationCode,
       'redirect_uri': _redirectEndpoint.toString(),
-      'code_verifier': base64Url
-        .encode(ascii.encode(_codeVerifier))
-        .replaceAll('=', '')
+      'code_verifier': _codeVerifier
     };
 
     var secret = this.secret;
@@ -336,6 +335,12 @@ class AuthorizationCodeGrant {
         128,
         (i) => _charset[Random.secure().nextInt(_charset.length)],
       ).join();
+
+  static String _createCodeChallenge(String code) {
+    return base64Url
+        .encode(sha256.convert(ascii.encode(code)).bytes)
+        .replaceAll('=', '');
+  }
 
   /// Closes the grant and frees its resources.
   ///
