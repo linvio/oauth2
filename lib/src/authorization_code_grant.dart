@@ -301,7 +301,9 @@ class AuthorizationCodeGrant {
       'grant_type': 'authorization_code',
       'code': authorizationCode,
       'redirect_uri': _redirectEndpoint.toString(),
-      'code_verifier': _codeVerifier
+      'code_verifier': base64Url
+        .encode(ascii.encode(_codeVerifier))
+        .replaceAll('=', '')
     };
 
     var secret = this.secret;
